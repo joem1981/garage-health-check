@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Vehicle Health Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --wk-bg: #1C1E1F; --wk-panel: #24272A; --wk-panel-2: #2B2E31; --wk-border: #383C3F;
+    --wk-text: #EDEBE6; --wk-muted: #9A9E9C; --brand: #2F6F6B; --brand-light: #4C918C;
+    --pass: #3F8F5C; --advisory: #D89B2E; --fail: #C1473A; --untested-border: #4A4E51;
+    --danger: #C1473A;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ font-family:'Barlow',sans-serif; background:var(--wk-bg); color:var(--wk-text); min-height:100vh; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3{ font-family:'Barlow Condensed',sans-serif; }
+  #shell{ max-width:560px; margin:0 auto; padding-bottom:100px; }
+  .hidden{ display:none !important; }
+
+  #auth-screen{ padding: 60px 24px; }
+  #auth-screen h1{ font-size:30px; margin:0 0 6px; }
+  #auth-screen p.sub{ color:var(--wk-muted); margin:0 0 28px; font-size:15px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:13px; color:var(--wk-muted); margin-bottom:6px; }
+  .field input{ width:100%; background:var(--wk-panel); border:1px solid var(--wk-border); color:var(--wk-text); padding:11px 12px; border-radius:8px; font-size:15px; font-family:'Barlow',sans-serif; }
+  .field input:focus{ outline:2px solid var(--brand-light); outline-offset:1px; }
+  .btn-primary{ background:var(--brand); color:#fff; border:none; padding:12px 18px; border-radius:9px; font-size:15px; font-weight:600; cursor:pointer; font-family:'Barlow',sans-serif; width:100%; }
+  .btn-primary:disabled{ opacity:.5; cursor:not-allowed; }
+  .switch-mode{ text-align:center; margin-top:16px; color:var(--wk-muted); font-size:14px; }
+  .switch-mode a{ color:var(--brand-light); cursor:pointer; text-decoration:underline; }
+  .error-msg{ background:#3A2320; border:1px solid var(--fail); color:#F0C6C0; padding:10px 12px; border-radius:8px; font-size:14px; margin-bottom:14px; }
+
+  .topbar{ padding:18px 20px 12px; border-bottom:1px solid var(--wk-border); display:flex; justify-content:space-between; align-items:flex-start; }
+  .topbar h1{ font-size:22px; margin:0; }
+  .topbar .garage-name{ font-size:13px; color:var(--wk-muted); }
+  .logout-link{ font-size:13px; color:var(--wk-muted); cursor:pointer; text-decoration:underline; }
+
+  .status-strip{ padding:12px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--wk-border); font-size:13px; }
+  .status-strip .badge{ padding:4px 10px; border-radius:20px; font-weight:600; font-size:12px; }
+  .badge.active{ background:#274A34; color:#8FD6A6; }
+  .badge.inactive{ background:var(--wk-panel-2); color:var(--wk-muted); }
+  .billing-link{ color:var(--brand-light); cursor:pointer; text-decoration:underline; font-size:13px; }
+
+  .tabs{ display:flex; border-bottom:1px solid var(--wk-border); }
+  .tab{ flex:1; text-align:center; padding:12px; font-size:15px; color:var(--wk-muted); cursor:pointer; border-bottom:2px solid transparent; }
+  .tab.active{ color:var(--wk-text); border-bottom-color:var(--brand); }
+
+  .job-details{ padding:18px 20px; display:flex; flex-direction:column; gap:12px; }
+  .plate-input{ background:#F0C420 !important; color:#14161A !important; border:2px solid #14161A !important; font-weight:700; font-size:19px !important; letter-spacing:2px; text-align:center; text-transform:uppercase; border-radius:6px !important; }
+
+  .section{ margin:6px 20px 18px; border:1px solid var(--wk-border); border-radius:10px; overflow:hidden; background:var(--wk-panel); }
+  .section-head{ display:flex; align-items:center; justify-content:space-between; padding:13px 14px; cursor:pointer; user-select:none; }
+  .section-head h3{ margin:0; font-size:19px; font-weight:600; }
+  .section-count{ font-size:12px; color:var(--wk-muted); }
+  .chevron{ transition:transform .15s ease; color:var(--wk-muted); }
+  .section.collapsed .chevron{ transform:rotate(-90deg); }
+  .section.collapsed .section-body{ display:none; }
+  .item{ display:flex; align-items:center; gap:10px; padding:11px 14px; border-top:1px solid var(--wk-border); }
+  .item-name{ flex:1; font-size:15px; }
+  .status-btn{ width:34px; height:34px; border-radius:50%; border:2px solid var(--untested-border); background:transparent; cursor:pointer; flex-shrink:0; }
+  .status-btn.pass{ background:var(--pass); border-color:var(--pass); }
+  .status-btn.advisory{ background:var(--advisory); border-color:var(--advisory); }
+  .status-btn.fail{ background:var(--fail); border-color:var(--fail); }
+  .cam-btn{ width:34px; height:34px; border-radius:8px; border:1px solid var(--wk-border); background:var(--wk-panel-2); color:var(--wk-muted); flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .cam-btn.has-photo{ border-color:var(--brand-light); color:var(--brand-light); }
+  .item-extra{ padding:0 14px 12px; display:flex; flex-direction:column; gap:8px; }
+  .item-extra input[type=text]{ width:100%; background:var(--wk-panel-2); border:1px solid var(--wk-border); color:var(--wk-text); padding:9px 10px; border-radius:7px; font-size:14px; font-family:'Barlow',sans-serif; }
+  .cost-row{ display:flex; align-items:center; gap:8px; }
+  .cost-row span{ color:var(--wk-muted); font-size:14px; }
+  .cost-row input{ width:90px !important; }
+  .thumb-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .thumb{ position:relative; width:56px; height:56px; border-radius:6px; overflow:hidden; border:1px solid var(--wk-border); }
+  .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .thumb button{ position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,.6); color:#fff; font-size:11px; cursor:pointer; }
+
+  .footer-bar{ position:fixed; bottom:0; left:0; right:0; background:var(--wk-panel); border-top:1px solid var(--wk-border); padding:12px 20px; }
+  .footer-bar-inner{ max-width:560px; margin:0 auto; display:flex; align-items:center; gap:12px; }
+  .summary-chips{ display:flex; gap:8px; flex:1; font-size:13px; color:var(--wk-muted); }
+  .chip{ display:flex; align-items:center; gap:5px; }
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .btn-generate{ background:var(--brand); color:#fff; border:none; padding:12px 18px; border-radius:9px; font-size:15px; font-weight:600; cursor:pointer; white-space:nowrap; font-family:'Barlow',sans-serif; }
+  .btn-generate:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .success-panel{ margin:20px; padding:20px; background:var(--wk-panel); border:1px solid var(--brand-light); border-radius:12px; }
+  .success-panel h2{ margin:0 0 8px; font-size:22px; }
+  .link-box{ display:flex; gap:8px; margin:14px 0; }
+  .link-box input{ flex:1; background:var(--wk-panel-2); border:1px solid var(--wk-border); color:var(--wk-text); padding:10px; border-radius:8px; font-size:13px; }
+  .link-box button, .success-panel > button{ background:var(--brand); color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; font-size:14px; font-family:'Barlow',sans-serif; }
+  .link-box a.open-link{ display:inline-block; margin-top:4px; color:var(--brand-light); font-size:14px; }
+
+  .saved-list{ padding:16px 20px; }
+  .saved-row{ display:flex; justify-content:space-between; align-items:center; padding:14px 0; border-bottom:1px solid var(--wk-border); }
+  .saved-row .reg{ font-weight:600; }
+  .saved-row .meta{ font-size:13px; color:var(--wk-muted); }
+  .saved-row button{ background:var(--wk-panel-2); border:1px solid var(--wk-border); color:var(--wk-text); padding:7px 12px; border-radius:7px; cursor:pointer; font-size:13px; }
+  .empty-state{ padding:40px 20px; text-align:center; color:var(--wk-muted); }
+
+  .paywall{ margin:20px; padding:20px; background:#2B2416; border:1px solid var(--advisory); border-radius:12px; }
+  .paywall h3{ margin:0 0 8px; color:#F0D9A6; }
+  .paywall p{ color:#D8C39A; font-size:14px; margin:0 0 14px; }
+  .paywall button{ background:var(--advisory); color:#2B2416; border:none; padding:11px 16px; border-radius:8px; font-weight:600; cursor:pointer; font-family:'Barlow',sans-serif; }
+</style>
+</head>
+<body>
+
+<div id="shell">
+
+  <div id="auth-screen">
+    <h1>Vehicle Health Check</h1>
+    <p class="sub">Send customers a proper photo report, not a guess over the phone.</p>
+    <div id="auth-error" class="error-msg hidden"></div>
+
+    <div id="login-form">
+      <div class="field"><label>Email</label><input type="email" id="login-email"></div>
+      <div class="field"><label>Password</label><input type="password" id="login-password"></div>
+      <button class="btn-primary" onclick="doLogin()">Log in</button>
+      <div class="switch-mode">New here? <a onclick="showSignup()">Create a garage account</a></div>
+    </div>
+
+    <div id="signup-form" class="hidden">
+      <div class="field"><label>Garage name</label><input type="text" id="signup-name"></div>
+      <div class="field"><label>Email</label><input type="email" id="signup-email"></div>
+      <div class="field"><label>Password</label><input type="password" id="signup-password" placeholder="At least 8 characters"></div>
+      <button class="btn-primary" onclick="doSignup()">Create account</button>
+      <div class="switch-mode">Already have one? <a onclick="showLogin()">Log in</a></div>
+    </div>
+  </div>
+
+  <div id="main-app" class="hidden">
+    <div class="topbar">
+      <div><h1>Health Check</h1><div class="garage-name" id="garage-name-label"></div></div>
+      <div class="logout-link" onclick="logout()">Log out</div>
+    </div>
+    <div class="status-strip">
+      <span id="sub-badge" class="badge inactive">Free tier</span>
+      <span class="billing-link" onclick="openBilling()" id="billing-link">Subscribe</span>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" id="tab-new" onclick="switchTab('new')">New inspection</div>
+      <div class="tab" id="tab-saved" onclick="switchTab('saved')">Saved reports</div>
+    </div>
+
+    <div id="panel-new">
+      <div class="job-details">
+        <div class="field"><label for="reg">Registration</label><input id="reg" class="plate-input" type="text" placeholder="AB12 CDE" maxlength="10"></div>
+        <div class="field"><label for="customer">Customer name</label><input id="customer" type="text" placeholder="e.g. J. Whitfield"></div>
+      </div>
+      <div id="sections"></div>
+      <div id="success-container"></div>
+    </div>
+
+    <div id="panel-saved" class="hidden">
+      <div class="saved-list" id="saved-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer-bar hidden" id="footer-bar">
+  <div class="footer-bar-inner">
+    <div class="summary-chips" id="summary"></div>
+    <button class="btn-generate" id="genBtn" onclick="generateReport()">Generate report</button>
+  </div>
+</div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('vhc_token') || null;
+let currentGarage = null;
+
+async function api(path, opts = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, Object.assign({}, opts, { headers }));
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) { const err = new Error(body.error || 'Request failed'); err.body = body; err.status = res.status; throw err; }
+  return body;
+}
+
+function showSignup(){ document.getElementById('login-form').classList.add('hidden'); document.getElementById('signup-form').classList.remove('hidden'); }
+function showLogin(){ document.getElementById('signup-form').classList.add('hidden'); document.getElementById('login-form').classList.remove('hidden'); }
+function showAuthError(msg){ const el = document.getElementById('auth-error'); el.textContent = msg; el.classList.remove('hidden'); }
+
+async function doLogin(){
+  try {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    const { token: t, garage } = await api('/api/login', { method:'POST', body: JSON.stringify({ email, password }) });
+    token = t; localStorage.setItem('vhc_token', t);
+    onAuthed(garage);
+  } catch (err) { showAuthError(err.message)
