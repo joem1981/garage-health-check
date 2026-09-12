@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vehicle Health Check Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --pp-bg:#F5F3EE; --pp-panel:#FFFFFF; --pp-border:#E4E0D6; --pp-text:#23262A; --pp-muted:#6E7175;
+    --pass:#3F8F5C; --advisory:#D89B2E; --fail:#C1473A; --untested-border:#C9C5B8;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:'Barlow',sans-serif; background:var(--pp-bg); color:var(--pp-text); }
+  h1,h2,h3{ font-family:'Barlow Condensed',sans-serif; }
+  #wrap{ max-width:560px; margin:0 auto; padding-bottom:40px; }
+  .report-header{ padding:26px 20px 6px; }
+  .report-header .garage{ font-size:14px; color:var(--pp-muted); margin-bottom:10px; }
+  .report-header h2{ font-size:28px; margin:0 0 4px; font-weight:600; }
+  .report-meta{ font-size:14px; color:var(--pp-muted); }
+  .ribbon{ margin:16px 20px; padding:14px 16px; border-radius:10px; font-size:15px; font-weight:600; }
+  .ribbon.pass{ background:#E6F2E9; color:#1F5C34; }
+  .ribbon.advisory{ background:#FBF0DC; color:#7A5713; }
+  .ribbon.fail{ background:#FAE6E3; color:#8A2E23; }
+  .rp-section{ margin:0 20px 16px; background:var(--pp-panel); border:1px solid var(--pp-border); border-radius:10px; overflow:hidden; }
+  .rp-section h3{ margin:0; padding:12px 16px; font-size:18px; border-bottom:1px solid var(--pp-border); }
+  .rp-item{ padding:12px 16px; border-left:4px solid var(--untested-border); display:flex; gap:12px; }
+  .rp-item + .rp-item{ border-top:1px solid var(--pp-border); }
+  .rp-item.pass{ border-left-color:var(--pass); }
+  .rp-item.advisory{ border-left-color:var(--advisory); }
+  .rp-item.fail{ border-left-color:var(--fail); }
+  .rp-item-main{ flex:1; }
+  .rp-item-name{ font-size:15px; font-weight:500; }
+  .rp-item-note{ font-size:13px; color:var(--pp-muted); margin-top:3px; }
+  .rp-item-cost{ font-size:13px; margin-top:4px; font-weight:600; }
+  .rp-item-cost.advisory{ color:#7A5713; }
+  .rp-item-cost.fail{ color:#8A2E23; }
+  .rp-thumb{ width:52px; height:52px; border-radius:6px; overflow:hidden; flex-shrink:0; }
+  .rp-thumb img{ width:100%; height:100%; object-fit:cover; }
+  .rp-total{ margin:4px 20px 30px; padding:16px; background:var(--pp-panel); border:1px solid var(--pp-border); border-radius:10px; display:flex; justify-content:space-between; align-items:center; }
+  .rp-total .label{ font-size:14px; color:var(--pp-muted); }
+  .rp-total .amount{ font-size:24px; font-weight:700; }
+  .loading, .not-found{ padding:60px 20px; text-align:center; color:var(--pp-muted); }
+</style>
+</head>
+<body>
+<div id="wrap"><div class="loading">Loading report…</div></div>
+
+<script>
+async function load(){
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  const wrap = document.getElementById('wrap');
+  if (!token) { wrap.innerHTML = '<div class="not-found">No report token given.</div>'; return; }
+
+  let payload;
+  try {
+    const res = await fetch('/api/public/inspections/' + encodeURIComponent(token));
+    if (!res.ok) throw new Error('not found');
+    payload = (await res.json()).report;
+  } catch (err) {
+    wrap.innerHTML = '<div class="not-found">This report link isn\'t valid, or has been removed.</div>';
+    return;
+  }
+
+  const { sections, state } = payload.data;
+  let pass=0, adv=0, fail=0, total=0;
+  const secHtml = sections.map((sec, si) => {
+    const items = sec.items.map((name, ii) => {
+      const it = state[si][ii];
+      if (it.status === 'pass') pass++;
+      if (it.status === 'advisory') { adv++; total += parseFloat(it.cost) || 0; }
+      if (it.status === 'fail') { fail++; total += parseFloat(it.cost) || 0; }
+      return `
+        <div class="rp-item ${it.status !== 'untested' ? it.status : ''}">
+          <div class="rp-item-main">
+            <div class="rp-item-name">${name}</div>
+            ${it.note ? `<div class="rp-item-note">${it.note}</div>` : ''}
+            ${it.cost ? `<div class="rp-item-cost ${it.status}">&pound;${parseFloat(it.cost)||0}</div>` : ''}
+          </div>
+          ${it.photo ? `<div class="rp-thumb"><img src="${it.photo}"></div>` : ''}
+        </div>`;
+    }).join('');
+    return `<div class="rp-section"><h3>${sec.name}</h3>${items}</div>`;
+  }).join('');
+
+  const ribbonClass = fail > 0 ? 'fail' : (adv > 0 ? 'advisory' : 'pass');
+  const ribbonText = fail > 0
+    ? `${fail} item${fail>1?'s':''} need${fail>1?'':'s'} attention.`
+    : (adv > 0 ? `${adv} advisory item${adv>1?'s':''} worth keeping an eye on.` : `Everything checked came back clean.`);
+
+  const dateStr = new Date(payload.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+
+  wrap.innerHTML = `
+    <div class="report-header">
+      <div class="garage">${payload.garage_name}</div>
+      <h2>${payload.vehicle_reg || 'Vehicle Health Check'}</h2>
+      <div class="report-meta">${payload.customer_name ? payload.customer_name + ' &mdash; ' : ''}${dateStr}</div>
+    </div>
+    <div class="ribbon ${ribbonClass}">${ribbonText}</div>
+    ${secHtml}
+    <div class="rp-total">
+      <div class="label">Estimated cost of advisory &amp; required work</div>
+      <div class="amount">&pound;${total.toFixed(2).replace(/\.00$/,'')}</div>
+    </div>
+  `;
+}
+load();
+</script>
+</body>
+</html>
